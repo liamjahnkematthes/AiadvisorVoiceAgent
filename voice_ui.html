@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LiveKit Voice Agent UI</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 2em; 
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 2em;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; text-align: center; }
+    label { display: block; margin-top: 1em; font-weight: bold; }
+    input { 
+      width: 100%; 
+      padding: 8px; 
+      margin-top: 0.5em; 
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button { 
+      background: #007bff; 
+      color: white; 
+      border: none; 
+      padding: 10px 20px; 
+      margin: 10px 5px; 
+      border-radius: 4px; 
+      cursor: pointer;
+    }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #log { 
+      margin-top: 2em; 
+      background: #f8f9fa; 
+      padding: 1em; 
+      border-radius: 5px; 
+      min-height: 200px;
+      border: 1px solid #dee2e6;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .status { 
+      padding: 10px; 
+      margin: 10px 0; 
+      border-radius: 4px; 
+      font-weight: bold;
+    }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+    .status.connecting { background: #fff3cd; color: #856404; }
+    .error { color: red; }
+    .success { color: green; }
+    .warning { color: orange; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎤 Voice Agent Demo</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+   
+    <label for="url">LiveKit URL:</label>
+    <input type="text" id="url" value="wss://aiadvisor-hdtqljyi.livekit.cloud" placeholder="wss://your-livekit-server.com">
+    
+    <label for="apiKey">API Key:</label>
+    <input type="text" id="apiKey" value="APIZF4fQRzSiEKc" placeholder="Your LiveKit API Key">
+    
+    <label for="apiSecret">API Secret:</label>
+    <input type="password" id="apiSecret" value="HmZziRoaXVgUx9M7b1s2o3WDNQlKDOeCB7e2s4LCQtB" placeholder="Your LiveKit API Secret">
+    
+    <label for="room">Room Name:</label>
+    <input type="text" id="room" value="demo-room" placeholder="Room name">
+   
+    <button id="connectBtn">Connect</button>
+    <button id="recordBtn" disabled>🎤 Start Recording</button>
+   
+    <div id="log">Ready to connect...</div>
+  </div>
+
+  <script>
+    let isConnected = false;
+    let isRecording = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    
+    const log = (msg, type = 'info') => {
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+      document.getElementById('log').innerHTML += `<div class="${className}">[${timestamp}] ${msg}</div>`;
+      document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
+    };
+    
+    const updateStatus = (status, className) => {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = status;
+      statusEl.className = `status ${className}`;
+    };
+    
+    const updateButtons = () => {
+      document.getElementById('connectBtn').disabled = isConnected;
+      document.getElementById('recordBtn').disabled = !isConnected || isRecording;
+    };
+    
+    // Connect to LiveKit
+    document.getElementById('connectBtn').onclick = async () => {
+      const url = document.getElementById('url').value;
+      const apiKey = document.getElementById('apiKey').value;
+      const apiSecret = document.getElementById('apiSecret').value;
+      const roomName = document.getElementById('room').value;
+      
+      if (!url || !apiKey || !apiSecret || !roomName) {
+        log('Please fill in all fields.', 'error');
+        return;
+      }
+      
+      updateStatus('Connecting...', 'connecting');
+      log('Connecting to LiveKit...', 'info');
+      
+      try {
+        // Get token from our token server
+        const identity = 'user-' + Math.floor(Math.random() * 10000);
+        const tokenUrl = `http://localhost:5001/token?room=${encodeURIComponent(roomName)}&identity=${identity}`;
+        
+        log('Getting token...', 'info');
+        const resp = await fetch(tokenUrl);
+        
+        if (!resp.ok) {
+          throw new Error(`Token server error: ${resp.status}`);
+        }
+        
+        const data = await resp.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        log('Got token successfully', 'success');
+        
+        // Load LiveKit client dynamically
+        if (!window.livekitClient && !window.LiveKitClient && !window.livekit) {
+          log('Loading LiveKit client...', 'info');
+          const script = document.createElement('script');
+          script.src = 'https://unpkg.com/livekit-client@2.0.0/dist/livekit-client.umd.js';
+          script.onload = () => {
+            log('LiveKit client loaded', 'success');
+            connectToRoom(url, data.token, roomName);
+          };
+          script.onerror = () => {
+            // Try alternative CDN
+            const script2 = document.createElement('script');
+            script2.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.0.0/dist/livekit-client.umd.js';
+            script2.onload = () => {
+              log('LiveKit client loaded (alternative CDN)', 'success');
+              connectToRoom(url, data.token, roomName);
+            };
+            script2.onerror = () => {
+              throw new Error('Failed to load LiveKit client from both CDNs');
+            };
+            document.head.appendChild(script2);
+          };
+          document.head.appendChild(script);
+        } else {
+          connectToRoom(url, data.token, roomName);
+        }
+        
+      } catch (error) {
+        log('Connection failed: ' + error.message, 'error');
+        updateStatus('Connection Failed', 'disconnected');
+        console.error('Connection error:', error);
+      }
+    };
+    
+    async function connectToRoom(url, token, roomName) {
+      try {
+        log('Connecting to room...', 'info');
+        
+        // Check which LiveKit client is available
+        let connect, RoomEvent, LocalAudioTrack, Room;
+        
+        log('Debugging LiveKit client availability...', 'info');
+        log('window.LiveKitClient: ' + (window.LiveKitClient ? 'found' : 'not found'), 'info');
+        log('window.livekitClient: ' + (window.livekitClient ? 'found' : 'not found'), 'info');
+        log('window.livekit: ' + (window.livekit ? 'found' : 'not found'), 'info');
+        
+        if (window.LiveKitClient) {
+          log('Using window.LiveKitClient', 'info');
+          connect = window.LiveKitClient.connect;
+          RoomEvent = window.LiveKitClient.RoomEvent;
+          LocalAudioTrack = window.LiveKitClient.LocalAudioTrack;
+          Room = window.LiveKitClient.Room;
+        } else if (window.livekitClient) {
+          log('Using window.livekitClient', 'info');
+          connect = window.livekitClient.connect;
+          RoomEvent = window.livekitClient.RoomEvent;
+          LocalAudioTrack = window.livekitClient.LocalAudioTrack;
+          Room = window.livekitClient.Room;
+        } else if (window.livekit) {
+          log('Using window.livekit', 'info');
+          connect = window.livekit.connect;
+          RoomEvent = window.livekit.RoomEvent;
+          LocalAudioTrack = window.livekit.LocalAudioTrack;
+          Room = window.livekit.Room;
+        } else {
+          // Log all available globals for debugging
+          log('Available globals containing "livekit":', 'info');
+          for (let key in window) {
+            if (key.toLowerCase().includes('livekit')) {
+              log('  - ' + key + ': ' + (typeof window[key]), 'info');
+            }
+          }
+          throw new Error('LiveKit client not available');
+        }
+        
+        if (!connect) {
+          throw new Error('connect function not found in LiveKit client');
+        }
+        
+        window.room = await connect(url, token, { audio: true, video: false });
+        
+        log('Connected to room: ' + roomName, 'success');
+        isConnected = true;
+        updateStatus('Connected', 'connected');
+        updateButtons();
+        
+        // Listen for agent audio
+        window.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === 'audio') {
+            log('Agent audio received', 'success');
+            const audio = new window.Audio();
+            audio.srcObject = new MediaStream([track.mediaStreamTrack]);
+            audio.play();
+          }
+        });
+        
+        // Listen for agent messages
+        window.room.on(RoomEvent.DataReceived, (payload, participant, kind) => {
+          const message = new TextDecoder().decode(payload);
+          log('Agent: ' + message, 'success');
+        });
+        
+        log('Ready to record! Speak to your agent.', 'success');
+        
+      } catch (error) {
+        log('Room connection failed: ' + error.message, 'error');
+        updateStatus('Connection Failed', 'disconnected');
+      }
+    }
+    
+    // Toggle recording
+    document.getElementById('recordBtn').onclick = async () => {
+      if (!isRecording) {
+        try {
+          if (!window.room || !window.room.isconnected()) {
+            log('Not connected to LiveKit room. Please connect first.', 'error');
+            return;
+          }
+          
+          log('Starting recording...', 'info');
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          
+          // Create and publish audio track to LiveKit
+          let LocalAudioTrack;
+          if (window.LiveKitClient) {
+            LocalAudioTrack = window.LiveKitClient.LocalAudioTrack;
+          } else if (window.livekitClient) {
+            LocalAudioTrack = window.livekitClient.LocalAudioTrack;
+          } else if (window.livekit) {
+            LocalAudioTrack = window.livekit.LocalAudioTrack;
+          } else {
+            throw new Error('LiveKit client not available');
+          }
+          
+          window.localTrack = new LocalAudioTrack(stream.getAudioTracks()[0]);
+          await window.room.localParticipant.publishTrack(window.localTrack);
+          
+          isRecording = true;
+          document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
+          log('Recording and sending audio to agent...', 'success');
+          
+        } catch (error) {
+          log('Failed to start recording: ' + error.message, 'error');
+          console.error('Recording error:', error);
+        }
+      } else {
+        // Stop recording
+        try {
+          if (window.localTrack) {
+            await window.room.localParticipant.unpublishTrack(window.localTrack);
+            window.localTrack.stop();
+            window.localTrack = null;
+          }
+          isRecording = false;
+          document.getElementById('recordBtn').textContent = '🎤 Start Recording';
+          log('Recording stopped.', 'info');
+        } catch (error) {
+          log('Failed to stop recording: ' + error.message, 'error');
+        }
+      }
+    };
+    
+    // Initialize
+    updateButtons();
+    log('Voice Agent UI ready!', 'success');
+    log('Fill in your LiveKit credentials and click Connect.', 'info');
+  </script>
+</body>
+</html> 

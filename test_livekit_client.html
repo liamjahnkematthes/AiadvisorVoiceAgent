@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LiveKit Client Debug</title>
+</head>
+<body>
+    <h1>LiveKit Client Debug</h1>
+    <div id="output"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <script>
+        function log(msg) {
+            document.getElementById('output').innerHTML += '<div>' + msg + '</div>';
+        }
+        
+        setTimeout(() => {
+            log('Checking LiveKit client availability...');
+            
+            if (window.LiveKitClient) {
+                log('✅ window.LiveKitClient found');
+                log('Keys: ' + Object.keys(window.LiveKitClient).join(', '));
+                
+                if (window.LiveKitClient.connect) {
+                    log('✅ connect function found');
+                } else {
+                    log('❌ connect function not found');
+                }
+                
+                if (window.LiveKitClient.Room) {
+                    log('✅ Room class found');
+                } else {
+                    log('❌ Room class not found');
+                }
+                
+                if (window.LiveKitClient.RoomEvent) {
+                    log('✅ RoomEvent found');
+                } else {
+                    log('❌ RoomEvent not found');
+                }
+                
+            } else {
+                log('❌ window.LiveKitClient not found');
+            }
+            
+            if (window.livekitClient) {
+                log('✅ window.livekitClient found');
+                log('Keys: ' + Object.keys(window.livekitClient).join(', '));
+                
+                if (window.livekitClient.connect) {
+                    log('✅ connect function found');
+                } else {
+                    log('❌ connect function not found');
+                }
+                
+            } else {
+                log('❌ window.livekitClient not found');
+            }
+            
+            // Check for any other global variables
+            for (let key in window) {
+                if (key.toLowerCase().includes('livekit')) {
+                    log('Found LiveKit-related global: ' + key);
+                }
+            }
+            
+        }, 2000);
+    </script>
+</body>
+</html> 

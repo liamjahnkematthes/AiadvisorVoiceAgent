@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LiveKit Client Test</title>
+</head>
+<body>
+    <h1>LiveKit Client Test</h1>
+    <div id="status">Loading...</div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <script>
+        setTimeout(() => {
+            const status = document.getElementById('status');
+            if (window.livekitClient) {
+                status.innerHTML = '✅ LiveKit client loaded successfully!';
+                status.style.color = 'green';
+                console.log('LiveKit client:', window.livekitClient);
+            } else if (window.LiveKitClient) {
+                status.innerHTML = '✅ LiveKit client loaded as LiveKitClient!';
+                status.style.color = 'green';
+                console.log('LiveKit client:', window.LiveKitClient);
+            } else {
+                status.innerHTML = '❌ LiveKit client failed to load';
+                status.style.color = 'red';
+                console.log('Available window objects:', Object.keys(window).filter(k => k.toLowerCase().includes('livekit')));
+            }
+        }, 2000);
+    </script>
+</body>
+</html> 

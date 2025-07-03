@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Real Voice Agent UI</title>
+  <script src="https://unpkg.com/livekit-client@1.15.5/dist/livekit-client.umd.js"></script>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 2em; 
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 2em;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; text-align: center; }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+    .status.connecting { background: #fff3cd; color: #856404; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 15px 25px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    button.recording { background: #dc3545; animation: pulse 1s infinite; }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    #log {
+      margin-top: 2em;
+      background: #f8f9fa;
+      padding: 1em;
+      border-radius: 5px;
+      min-height: 200px;
+      border: 1px solid #dee2e6;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .audio-visualizer {
+      width: 100%;
+      height: 60px;
+      background: #000;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .controls {
+      text-align: center;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎤 Real Voice Agent</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <div class="audio-visualizer" id="visualizer"></div>
+    
+    <div class="controls">
+      <button id="connectBtn">🔗 Connect to Agent</button>
+      <button id="disconnectBtn" disabled>🔌 Disconnect</button>
+      <button id="recordBtn" disabled>🎤 Start Talking</button>
+      <button id="stopBtn" disabled>⏹️ Stop Talking</button>
+    </div>
+    
+    <div id="log">Ready to connect to real AI agent...</div>
+  </div>
+
+  <script>
+    let room = null;
+    let localTrack = null;
+    let isRecording = false;
+    let livekitClient = null;
+    
+    const log = (msg) => {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEl = document.getElementById('log');
+      logEl.innerHTML += `<div>[${timestamp}] ${msg}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    
+    const updateStatus = (status, className) => {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = status;
+      statusEl.className = `status ${className}`;
+    };
+    
+    const updateButtons = () => {
+      document.getElementById('connectBtn').disabled = room !== null;
+      document.getElementById('disconnectBtn').disabled = room === null;
+      document.getElementById('recordBtn').disabled = room === null || isRecording;
+      document.getElementById('stopBtn').disabled = !isRecording;
+    };
+    
+    // Check if LiveKit client is loaded
+    function checkLiveKitLoaded() {
+      if (window.livekitClient) {
+        livekitClient = window.livekitClient;
+        log('✅ LiveKit client loaded successfully');
+        return true;
+      } else {
+        log('⏳ Waiting for LiveKit client to load...');
+        setTimeout(checkLiveKitLoaded, 100);
+        return false;
+      }
+    }
+    
+    // Connect to LiveKit
+    document.getElementById('connectBtn').onclick = async () => {
+      if (!livekitClient) {
+        log('❌ LiveKit client not loaded yet. Please wait...');
+        return;
+      }
+      
+      const { connect, RoomEvent } = livekitClient;
+      
+      updateStatus('Connecting...', 'connecting');
+      log('🔗 Connecting to LiveKit agent...');
+      
+      try {
+        // Get token from our local server
+        const identity = 'user-' + Math.floor(Math.random() * 10000);
+        const tokenUrl = `http://localhost:5001/token?room=demo-room&identity=${identity}`;
+        
+        log('🔑 Getting token...');
+        const resp = await fetch(tokenUrl);
+        
+        if (!resp.ok) {
+          throw new Error(`Token server error: ${resp.status}`);
+        }
+        
+        const data = await resp.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        log('✅ Got token successfully');
+        
+        // Connect to the room
+        room = await connect('wss://aiadvisor-hdtqljyi.livekit.cloud', data.token, {
+          autoSubscribe: true,
+        });
+        
+        log('✅ Connected to room: demo-room');
+        
+        // Set up room event listeners
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          log(`🎵 Received audio from: ${participant.identity}`);
+          if (track.kind === 'audio') {
+            // Play the agent's audio response
+            track.attach().play();
+          }
+        });
+        
+        room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+          log(`🔇 Audio ended from: ${participant.identity}`);
+        });
+        
+        room.on(RoomEvent.ParticipantConnected, (participant) => {
+          log(`👤 Agent joined: ${participant.identity}`);
+        });
+        
+        room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+          log(`👤 Agent left: ${participant.identity}`);
+        });
+        
+        updateStatus('Connected to Agent', 'connected');
+        updateButtons();
+        log('🎤 You can now start talking to the AI agent!');
+        
+      } catch (error) {
+        log('❌ Connection failed: ' + error.message);
+        updateStatus('Connection Failed', 'disconnected');
+        console.error('Connection error:', error);
+      }
+    };
+    
+    // Disconnect
+    document.getElementById('disconnectBtn').onclick = () => {
+      if (isRecording) {
+        stopRecording();
+      }
+      if (room) {
+        room.disconnect();
+        room = null;
+      }
+      updateStatus('Disconnected', 'disconnected');
+      updateButtons();
+      log('🔌 Disconnected from agent');
+    };
+    
+    // Start recording/talking
+    document.getElementById('recordBtn').onclick = async () => {
+      try {
+        log('🎤 Starting to talk to agent...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Create and publish local audio track
+        localTrack = await livekitClient.LocalAudioTrack.create(stream);
+        await room.localParticipant.publishTrack(localTrack);
+        
+        isRecording = true;
+        updateButtons();
+        document.getElementById('recordBtn').classList.add('recording');
+        log('🎤 Talking to agent - speak now!');
+        
+      } catch (error) {
+        log('❌ Failed to start talking: ' + error.message);
+        console.error('Recording error:', error);
+      }
+    };
+    
+    // Stop recording/talking
+    document.getElementById('stopBtn').onclick = () => {
+      stopRecording();
+    };
+    
+    const stopRecording = () => {
+      if (localTrack && isRecording) {
+        room.localParticipant.unpublishTrack(localTrack);
+        localTrack.stop();
+        localTrack = null;
+        isRecording = false;
+        updateButtons();
+        document.getElementById('recordBtn').classList.remove('recording');
+        log('⏹️ Stopped talking to agent');
+      }
+    };
+    
+    // Initialize
+    window.addEventListener('load', () => {
+      checkLiveKitLoaded();
+      updateButtons();
+      log('🚀 Real Voice Agent UI ready!');
+      log('📝 Click "Connect to Agent" to start talking to the AI.');
+    });
+  </script>
+</body>
+</html> 

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Text Agent Test</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 2em; 
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 2em;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; text-align: center; }
+    .chat-box {
+      height: 300px;
+      border: 1px solid #ddd;
+      padding: 1em;
+      margin: 1em 0;
+      overflow-y: auto;
+      background: #f9f9f9;
+    }
+    .message {
+      margin: 0.5em 0;
+      padding: 0.5em;
+      border-radius: 5px;
+    }
+    .user-message {
+      background: #007bff;
+      color: white;
+      text-align: right;
+    }
+    .agent-message {
+      background: #e9ecef;
+      color: #333;
+    }
+    input[type="text"] {
+      width: 70%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    button:hover { background: #0056b3; }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🤖 Text Agent Test</h1>
+    
+    <div id="status" class="status disconnected">Disconnected</div>
+    
+    <div class="chat-box" id="chatBox">
+      <div class="message agent-message">Agent: Hello! I'm ready to chat. Type a message below.</div>
+    </div>
+    
+    <div>
+      <input type="text" id="messageInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+    
+    <div style="margin-top: 20px; font-size: 12px; color: #666;">
+      <p><strong>Test Messages:</strong></p>
+      <p>• "Hello, how are you?"</p>
+      <p>• "What can you help me with?"</p>
+      <p>• "Tell me a joke"</p>
+      <p>• "What's the weather like?"</p>
+    </div>
+  </div>
+
+  <script>
+    let isConnected = false;
+    
+    const chatBox = document.getElementById('chatBox');
+    const messageInput = document.getElementById('messageInput');
+    const status = document.getElementById('status');
+    
+    function addMessage(message, isUser = false) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${isUser ? 'user-message' : 'agent-message'}`;
+      messageDiv.textContent = isUser ? `You: ${message}` : `Agent: ${message}`;
+      chatBox.appendChild(messageDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    function updateStatus(connected) {
+      isConnected = connected;
+      status.textContent = connected ? 'Connected' : 'Disconnected';
+      status.className = `status ${connected ? 'connected' : 'disconnected'}`;
+    }
+    
+    function handleKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+    
+    function sendMessage() {
+      const message = messageInput.value.trim();
+      if (!message) return;
+      
+      addMessage(message, true);
+      messageInput.value = '';
+      
+      // Simulate agent response (in a real implementation, this would call the agent)
+      setTimeout(() => {
+        const responses = [
+          "I received your message! This is a demo response.",
+          "Thanks for your message. I'm here to help!",
+          "That's interesting! Tell me more about that.",
+          "I understand what you're saying. How can I assist you further?",
+          "Great question! Let me think about that for a moment...",
+          "I'm processing your request. Is there anything specific you'd like to know?"
+        ];
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+        addMessage(randomResponse);
+      }, 1000);
+    }
+    
+    // Simulate connection
+    setTimeout(() => {
+      updateStatus(true);
+      addMessage("Connected to agent successfully!");
+    }, 1000);
+    
+    // Focus on input
+    messageInput.focus();
+  </script>
+</body>
+</html> 

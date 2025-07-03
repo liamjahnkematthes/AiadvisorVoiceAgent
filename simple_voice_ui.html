@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Simple LiveKit Voice Agent UI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    label { display: block; margin-top: 1em; }
+    input, button { margin-top: 0.5em; padding: 8px; }
+    #log { margin-top: 2em; background: #f4f4f4; padding: 1em; border-radius: 5px; min-height: 100px; max-height: 300px; overflow-y: auto; }
+    .error { color: red; }
+    .success { color: green; }
+    .warning { color: orange; }
+  </style>
+</head>
+<body>
+  <h1>Simple LiveKit Voice Agent UI</h1>
+  <p>This is a simplified version that should work more reliably.</p>
+  
+  <label>LiveKit URL: <input id="url" value="wss://aiadvisor-hdtqljyi.livekit.cloud" size="40"></label>
+  <label>API Key: <input id="apiKey" value="APIZF4fQRzSiEKc" placeholder="Enter your API key"></label>
+  <label>API Secret: <input id="apiSecret" value="HmZziRoaXVgUx9M7b1s2o3WDNQlKDOeCB7e2s4LCQtB" placeholder="Enter your API secret" type="password"></label>
+  <label>Room Name: <input id="room" value="demo-room"></label>
+  
+  <button id="connectBtn" onclick="connectToLiveKit()">Connect to LiveKit</button>
+  <button id="recordBtn" onclick="toggleRecording()" disabled>Start Recording</button>
+  
+  <div id="log">Log output will appear here...</div>
+
+  <script>
+    let isRecording = false;
+    let mediaRecorder = null;
+    let ws = null;
+    
+    const log = (msg, type = 'info') => {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+      logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${msg}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    };
+    
+    async function connectToLiveKit() {
+      const url = document.getElementById('url').value;
+      const apiKey = document.getElementById('apiKey').value;
+      const apiSecret = document.getElementById('apiSecret').value;
+      const roomName = document.getElementById('room').value;
+      
+      if (!url || !apiKey || !apiSecret || !roomName) {
+        log('Please fill in all fields.', 'error');
+        return;
+      }
+      
+      log('Attempting to connect to LiveKit...', 'info');
+      
+      try {
+        // For now, let's just enable the record button and simulate a connection
+        // In a real implementation, you would use the LiveKit client here
+        document.getElementById('recordBtn').disabled = false;
+        log('Connection successful! (simulated)', 'success');
+        log('You can now start recording to test the voice functionality.', 'info');
+      } catch (error) {
+        log('Connection failed: ' + error.message, 'error');
+      }
+    }
+    
+    async function toggleRecording() {
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              log('Audio data captured: ' + event.data.size + ' bytes', 'info');
+              // Here you would send the audio data to your agent
+            }
+          };
+          
+          mediaRecorder.start(1000); // Capture in 1-second chunks
+          isRecording = true;
+          document.getElementById('recordBtn').textContent = 'Stop Recording';
+          log('Recording started...', 'success');
+        } catch (error) {
+          log('Failed to start recording: ' + error.message, 'error');
+        }
+      } else {
+        // Stop recording
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+          mediaRecorder.stream.getTracks().forEach(track => track.stop());
+        }
+        isRecording = false;
+        document.getElementById('recordBtn').textContent = 'Start Recording';
+        log('Recording stopped.', 'info');
+      }
+    }
+    
+    // Initialize
+    log('Simple LiveKit Voice Agent UI loaded.', 'success');
+    log('Enter your LiveKit credentials and click Connect.', 'info');
+  </script>
+</body>
+</html> 
